@@ -1,0 +1,549 @@
+from collections import defaultdict
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+from torneos.models import *
+from .serializers import *
+from rest_framework import status
+from django.views.decorators.csrf import csrf_exempt
+
+##########################
+###                    ###
+##########################
+def has_played_before(tournament, player1, player2):
+    for round in tournament.rounds.all():
+        if round.emparents.filter(
+            (models.Q(player1=player1) & models.Q(player2=player2)) |
+            (models.Q(player1=player2) & models.Q(player2=player1))
+        ).exists():
+            return True
+    return False
+
+def update_player_points(tournament):
+    num_players = tournament.players.count()
+
+    # Definir puntos base para cada rango de eliminación
+    points_distribution = {
+        'winner': 10,
+        'finalist': 8,
+        'thirdfinalist': 7,
+        'semifinalist': 6,
+        'quarterfinalist': 4,
+        'participant': 1
+    }
+
+    # Ajustar puntos según el tamaño del torneo
+    if num_players > 30:
+        scale_factor = 1.5
+    elif num_players > 20:
+        scale_factor = 1.3
+    else:
+        scale_factor = 1.0
+
+    for tournament_player in tournament.players.all():
+        player = tournament_player.jugador
+
+        if tournament.first_place and player == tournament.first_place.jugador:
+            player.ptos += int(points_distribution['winner'] * scale_factor)
+
+        elif tournament.second_place and player == tournament.second_place.jugador:
+            player.ptos += int(points_distribution['finalist'] * scale_factor)
+
+        elif tournament.third_place and player == tournament.third_place.jugador:
+            player.ptos += int(points_distribution['thirdfinalist'] * scale_factor)
+
+        elif tournament.top_players_4.filter(player=tournament_player).exists():
+            player.ptos += int(points_distribution['semifinalist'] * scale_factor)
+
+        elif tournament.top_players_8.filter(player=tournament_player).exists():
+            player.ptos += int(points_distribution['quarterfinalist'] * scale_factor)
+
+        else:
+            player.ptos += int(points_distribution['participant'] * scale_factor)
+
+        player.victorys = tournament_player.victorys
+        player.defeats = tournament_player.defeats
+        player.draws = tournament_player.draws
+
+        player.save()
+
+##########################
+###                    ###
+##########################
+
+@api_view(['GET'])
+def tournament_api(request):
+    tournaments = Tournament.objects.all()
+    serializer = TournamentSerializer(tournaments, many=True)
+    return JsonResponse(serializer.data, safe=False)
+
+@api_view(['POST'])
+def inscribe_player_api(request, id_tournament):
+    if request.method == 'POST':
+        try:
+            tournament = Tournament.objects.get(id=id_tournament)
+        except Tournament.DoesNotExist:
+            return JsonResponse({'error': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        try:
+            player = Player.objects.get(user=user)
+        except Player.DoesNotExist:
+            return JsonResponse({'error': 'Player not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        deck_id = request.data.get('deck')
+        if not deck_id:
+            return JsonResponse({'error': 'Deck ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            deck = Deck.objects.get(id=deck_id)
+        except Deck.DoesNotExist:
+            return JsonResponse({'error': 'Deck not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verificar si el jugador ya está registrado en el torneo
+        if TournamentPlayer.objects.filter(jugador=player, tournament=tournament).exists():
+            return JsonResponse({'error': 'Player is already registered in this tournament'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Crear la inscripción del jugador en el torneo
+        player_tournament = TournamentPlayer.objects.create(
+            deck=deck,
+            jugador=player,
+            decklist=request.FILES.get('decklist'),
+            tournament=tournament
+        )
+        serializer = PlayerTournamentSerializer(player_tournament)
+        tournament.players.add(player_tournament)
+        
+        return JsonResponse(serializer.data, status=status.HTTP_201_CREATED)
+    
+
+@api_view(['POST'])
+def start_tournament_api(request, id_tournament):
+    if request.method == 'POST':
+        try:
+            tournament = Tournament.objects.get(id=id_tournament)
+        except Tournament.DoesNotExist:
+            return JsonResponse({'error': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if tournament.status == 'Started':
+            return JsonResponse({'error': 'Tournament is already started'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            tournament.stablish_rounds()
+            tournament.stablish_top()
+            tournament.status = 'Started'
+            tournament.save()
+            return JsonResponse({'message': 'Tournament started successfully'}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+       return JsonResponse({'error': str(e)}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+
+def obtain_players_orders_by_tournament(request, id_tournament):
+    try:
+        tournament = Tournament.objects.get(id=id_tournament)
+    except Tournament.DoesNotExist:
+        return JsonResponse({'message': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    players = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')
+    player_serializer = PlayerTournamentSerializer(players, many=True)
+    return JsonResponse(player_serializer.data, safe=False, status=status.HTTP_200_OK)
+
+def obtain_bye(player_list):
+    last_player = None
+    for player in reversed(player_list):
+        if player.byes == 0:
+            last_player = player
+            player.byes += 1
+            player.ptos += 3
+            player.save()
+            player_list = [p for p in player_list if p.id != player.id]
+            break
+    return player_list
+    
+def obtain_next_round(request, id_tournament):
+    try:
+        tournament = Tournament.objects.get(id=id_tournament)
+    except Tournament.DoesNotExist:
+        return JsonResponse({'message': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    next_round = tournament.rounds.filter(finished=False).order_by('no_round').first()
+    if not next_round:
+        print('Ya es pal top')
+        if tournament.top == 8:
+            print('Es top 8')
+            print(tournament.top_players_8)
+            if not tournament.top_players_8.exists():
+                print('Es la ronda top 8')
+                return create_top_8(tournament)
+            elif not tournament.top_players_4.exists():
+                print('Es la ronda del top 4')
+                return create_top_4(tournament)
+            elif not tournament.final.exists():
+                print('Es la ronda final')
+                return create_final(tournament)
+            else:
+                return finalize_tournament(tournament)
+        elif tournament.top == 4:
+            print('Es top 4')
+            if not tournament.top_players_4.exists():
+                return create_top_4(tournament)
+            elif not tournament.final.exists():
+                return create_final(tournament)
+            else:
+                return finalize_tournament(tournament)
+        else:
+            return JsonResponse({'message': 'No unfinished rounds available'}, status=status.HTTP_200_OK)
+    
+    return create_regular_round(tournament, next_round)
+
+def create_top_8(tournament):
+    print('Se juega top 8')
+    top_players = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')[:8]
+    positions = {0: 1, 1: 8, 2: 5, 3: 4, 4: 3, 5: 6, 6: 7, 7: 2}
+    for index, player in enumerate(top_players):
+        top_player = TopPlayer.objects.create(player=player, position=positions[index])
+        tournament.top_players_8.add(top_player)
+    
+    next_round = Round.objects.create(no_round=tournament.rounds.count() + 1)
+    tournament.rounds.add(next_round)
+    top_players = tournament.top_players_8.all().order_by('position')
+    matches = []
+
+    for i in range(0, len(top_players), 2):
+        if i + 1 < len(top_players):
+            match = Emparents(
+                player1=top_players[i].player,
+                player2=top_players[i + 1].player,
+                top=True
+            )
+            matches.append(match)
+    
+    emparents = Emparents.objects.bulk_create(matches)
+    next_round.emparents.add(*emparents)
+    next_round.finished = True
+    next_round.save()
+    
+    next_round_serializer = RoundSerializer(next_round)
+    return JsonResponse(next_round_serializer.data, safe=False, status=status.HTTP_201_CREATED)
+
+def create_top_4(tournament):
+    
+    print('Se juega top 4')
+    if not tournament.top_players_8.exists():
+        top_players = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')[:4]
+        positions = {0: 1, 1: 4, 2: 3, 3: 2}
+        for index, player in enumerate(top_players):
+            top_player = TopPlayer.objects.create(player=player, position=positions[index])
+            tournament.top_players_4.add(top_player)
+        
+        next_round = Round.objects.create(no_round=tournament.rounds.count() + 1)
+        tournament.rounds.add(next_round)
+        top_players = tournament.top_players_4.all().order_by('position')
+        matches = []
+        
+        for i in range(0, len(top_players), 2):
+            if i + 1 < len(top_players):
+                match = Emparents(player1=top_players[i].player, player2=top_players[i + 1].player, top=True)
+                matches.append(match)
+        
+        emparents = Emparents.objects.bulk_create(matches)
+        next_round.emparents.add(*emparents)
+        next_round.finished = True
+        next_round.save()
+        
+        next_round_serializer = RoundSerializer(next_round)
+        return JsonResponse(next_round_serializer.data, safe=False, status=status.HTTP_201_CREATED)
+    else:
+        top_players = tournament.top_players_8.all().order_by('position')
+        winners = []
+
+        for i in range(0, len(top_players), 2):
+            if i + 1 < len(top_players):
+                player1 = top_players[i].player
+                player2 = top_players[i + 1].player
+                last_match = Emparents.objects.filter(
+                    (models.Q(player1=player1) & models.Q(player2=player2)) |
+                    (models.Q(player1=player2) & models.Q(player2=player1)),
+                    top=True
+                ).order_by('-id').first()
+                
+                if last_match:
+                    winner = last_match.player1 if last_match.result_ply1 > last_match.result_ply2 else last_match.player2
+                    winners.append((winner, min(top_players[i].position, top_players[i+1].position)))
+
+        winners.sort(key=lambda x: x[1])
+        next_round = Round.objects.create(no_round=tournament.rounds.count() + 1)
+        tournament.rounds.add(next_round)
+        
+        matches = [
+            Emparents(player1=winners[0][0], player2=winners[1][0], top=True),
+            Emparents(player1=winners[2][0], player2=winners[3][0], top=True)
+        ]
+        
+        emparents = Emparents.objects.bulk_create(matches)
+        next_round.emparents.add(*emparents)
+        next_round.finished = True
+        next_round.save()
+        
+        positions = {0: 1, 1: 2, 2: 3, 3: 4}
+        for index, (winner, _) in enumerate(winners):
+            top_player = TopPlayer.objects.create(player=winner, position=positions[index])
+            tournament.top_players_4.add(top_player)
+        
+        next_round_serializer = RoundSerializer(next_round)
+        return JsonResponse(next_round_serializer.data, safe=False, status=status.HTTP_201_CREATED)
+
+def create_final(tournament):
+    print('Se juega la final')
+    top_players = tournament.top_players_4.all().order_by('position')
+    tournament.final.add(*top_players)
+
+    winners = []
+    losers = []
+
+    for i in range(0, len(top_players), 2):
+        if i + 1 < len(top_players):
+            player1 = top_players[i].player
+            player2 = top_players[i + 1].player
+            last_match = Emparents.objects.filter(
+                (models.Q(player1=player1) & models.Q(player2=player2)) |
+                (models.Q(player1=player2) & models.Q(player2=player1)),
+                top=True
+            ).order_by('-id').first()
+            
+            if last_match:
+                if last_match.result_ply1 > last_match.result_ply2:
+                    winners.append(top_players[i])
+                    losers.append(top_players[i + 1])
+                else:
+                    winners.append(top_players[i + 1])
+                    losers.append(top_players[i])
+
+    winners.sort(key=lambda x: x.position)
+    losers.sort(key=lambda x: x.position)
+    next_round = Round.objects.create(no_round=tournament.rounds.count() + 1)
+    tournament.rounds.add(next_round)
+    
+    matches = [
+        Emparents(player1=winners[0].player, player2=winners[1].player, top=True, final='final'),
+        Emparents(player1=losers[0].player, player2=losers[1].player, top=True, final='bythird')
+    ]
+    
+    emparents = Emparents.objects.bulk_create(matches)
+    next_round.emparents.add(*emparents)
+    next_round.finished = True
+    next_round.save()
+    
+    next_round_serializer = RoundSerializer(next_round)
+    return JsonResponse(next_round_serializer.data, safe=False, status=status.HTTP_201_CREATED)
+
+def finalize_tournament(tournament):
+    print('Finalizando el torneo')
+    # final_players = tournament.final.all().values_list('player', flat=True)
+    final_match = Emparents.objects.filter(
+        final='final',
+        top=True
+    ).order_by('-id').first()
+
+    # top_4_players = tournament.top_players_4.all().values_list('player', flat=True)
+    third_place_match = Emparents.objects.filter(
+        final='bythird',
+        top=True
+    ).exclude(id=final_match.id).order_by('-id').first()
+
+    if final_match and third_place_match:
+        if final_match.result_ply1 > final_match.result_ply2:
+            tournament.first_place = final_match.player1
+            tournament.second_place = final_match.player2
+        else:
+            tournament.first_place = final_match.player2
+            tournament.second_place = final_match.player1
+
+        if third_place_match.result_ply1 > third_place_match.result_ply2:
+            tournament.third_place = third_place_match.player1
+        else:
+            tournament.third_place = third_place_match.player2
+
+        tournament.status = "Finished"
+        tournament.save()
+
+        update_player_points(tournament)
+
+        return JsonResponse({
+            'message': 'Torneo finalizado',
+            'first_place': tournament.first_place.jugador.user.username,
+            'second_place': tournament.second_place.jugador.user.username,
+            'third_place': tournament.third_place.jugador.user.username
+        }, status=status.HTTP_200_OK)
+
+def create_regular_round(tournament, next_round):
+    players_ordered = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')
+    if players_ordered.count() % 2 != 0:
+        if next_round.no_round == 1:
+            import random
+            players_ordered = list(players_ordered)
+            random.shuffle(players_ordered)
+        players_ordered = obtain_bye(players_ordered)
+
+    grouped_players = defaultdict(list)
+    for player in players_ordered:
+        grouped_players[player.ptos].append(player)
+
+    matches = []
+
+    # Emparejar jugadores dentro de cada grupo
+    previous_group_remainder = None
+    for points, group in sorted(grouped_players.items(), reverse=True):
+        random.shuffle(group)  # Barajar el grupo
+
+        if previous_group_remainder:
+            group.insert(0, previous_group_remainder)  # Añadir el jugador sobrante del grupo anterior
+
+        i = 0
+        while i < len(group) - 1:
+            player1 = group[i]
+            player2 = group[i + 1]
+            
+            has_played_before = has_played_before(tournament, player1, player2)
+
+            if not has_played_before:
+                match = Emparents(player1=player1, player2=player2)
+                matches.append(match)
+                i += 2
+            else:
+                # Si ya jugaron, barajar el grupo nuevamente
+                random.shuffle(group)
+                i = 0
+
+        # Si hay un jugador sobrante, guardarlo para el siguiente grupo
+        if i == len(group) - 1:
+            previous_group_remainder = group[i]
+        else:
+            previous_group_remainder = None
+    
+    emparents = Emparents.objects.bulk_create(matches)
+    next_round.emparents.add(*emparents)
+    next_round.finished = True
+    next_round.save()
+    
+    next_round_serializer = RoundSerializer(next_round)
+    return JsonResponse(next_round_serializer.data, safe=False, status=status.HTTP_201_CREATED)
+
+def calculate_omw(player):
+    opponents = player.get_opponents()
+    total_opponent_mwp = 0
+    count = 0
+
+    for opponent in opponents:
+        max_points = (opponent.victorys + opponent.draws + opponent.defeats) * 3
+        opponent_mwp = max(opponent.ptos / max_points, 0.33) if max_points > 0 else 0.33
+        total_opponent_mwp += opponent_mwp
+        count += 1
+
+    return total_opponent_mwp / count if count > 0 else 0.33
+
+def calculate_pgw(player):
+    # Obtener todos los emparejamientos del jugador
+    matches = Emparents.objects.filter(
+        models.Q(player1=player) | models.Q(player2=player)
+    )
+    
+    total_game_points = 0
+    total_games = 0
+
+    for match in matches:
+        if match.player1 == player:
+            total_game_points += match.result_ply1 * 3
+            total_games += (match.result_ply1 + match.result_ply2) * 3
+        else:
+            total_game_points += match.result_ply2 * 3
+            total_games += (match.result_ply1 + match.result_ply2) * 3
+
+    return total_game_points / total_games if total_games > 0 else 0.33
+
+def calculate_ogw(player):
+    opponents = player.get_opponents()
+    total_opponent_gwp = 0
+    count = 0
+
+    for opponent in opponents:
+        matches = Emparents.objects.filter(
+            models.Q(player1=opponent) | models.Q(player2=opponent)
+        )
+        total_game_points = sum(
+            (match.result_ply1 if match.player1 == opponent else match.result_ply2) * 3
+            for match in matches
+        )
+        total_games = sum(
+            (match.result_ply1 + match.result_ply2) * 3
+            for match in matches
+        )
+        opponent_gwp = max(total_game_points / total_games, 0.33) if total_games > 0 else 0.33
+        total_opponent_gwp += opponent_gwp
+        count += 1
+
+    return total_opponent_gwp / count if count > 0 else 0.33
+
+@api_view(['POST'])
+def stablish_result_emparents(request, id_emparent):
+    try:
+        emparent = Emparents.objects.get(id=id_emparent)
+    except Emparents.DoesNotExist:
+        return JsonResponse({'message': 'Match not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'POST':
+        result_ply1 = request.data.get('result_ply1')
+        result_ply2 = request.data.get('result_ply2')
+        player1 = emparent.player1
+        player2 = emparent.player2
+
+        # Determinar el tipo de partido basado en las posiciones
+        if emparent.top:
+            match_type = 'Clasificatoria'
+        else:
+            match_type = 'Regular'
+
+        if match_type == 'Regular':
+            if result_ply1 > result_ply2:
+                player1.ptos += 3
+                player1.victorys += 1
+                player2.defeats += 1
+            elif result_ply1 < result_ply2:
+                player2.ptos += 3
+                player2.victorys += 1
+                player1.defeats += 1
+            else:
+                player1.draws += 1
+                player1.ptos += 1
+                player2.draws += 1
+                player2.ptos += 1
+
+            # Calcular estadísticas para ambos jugadores
+            for player in [player1, player2]:
+                player.OMW = calculate_omw(player)
+                player.PGW = calculate_pgw(player)
+                player.OGW = calculate_ogw(player)
+                player.save()
+
+        else:
+            if result_ply1 > result_ply2:
+                player1.victorys += 1
+                player2.defeats += 1
+            elif result_ply1 < result_ply2:
+                player2.victorys += 1
+                player1.defeats += 1
+
+            player1.save()
+            player2.save()
+
+        emparent.result_ply1 = result_ply1
+        emparent.result_ply2 = result_ply2
+        emparent.save()
+
+        emparent_serializer = EmparentsSerializers(emparent)
+        return JsonResponse(emparent_serializer.data, safe=False, status=status.HTTP_201_CREATED)
+
+    return JsonResponse({'message': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        

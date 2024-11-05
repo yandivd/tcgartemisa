@@ -1,0 +1,6 @@
+venv
+media
+tcgartemisa/__pycache__
+torneos/__pycache__
+torneos/api/__pycache__
+torneos/migrations/__pycache__

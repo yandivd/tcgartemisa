@@ -1,0 +1,39 @@
+
+<div class="container mt-4">
+    <h1>Listado de Torneos</h1>
+    
+    <div class="row">
+        {% if tournaments %}
+            {% for tournament in tournaments %}
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ tournament.name }}</h5>
+                            <p class="card-text">
+                                <strong>Fecha:</strong> {{ tournament.date }}<br>
+                                <strong>Estado:</strong> {{ tournament.status }}
+                            </p>
+                            <form method="POST">
+                                {% csrf_token %}
+                                <div class="form-group">
+                                    <label for="deck">Deck:</label>
+                                    <select name="deck" id="deck" class="form-control" required>
+                                        {% for deck in decks %}
+                                            <option value="{{ deck.id }}">{{ deck.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="decklist">Decklist:</label>
+                                    <input type="file" name="decklist" id="decklist" class="form-control" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Inscribirme</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
