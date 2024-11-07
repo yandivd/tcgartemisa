@@ -41,6 +41,8 @@ def update_player_points(tournament):
 
     for tournament_player in tournament.players.all():
         player = tournament_player.jugador
+        
+        tj = TournamentPlayer.objects.filter(jugador=player).count()
 
         if tournament.first_place and player == tournament.first_place.jugador:
             player.ptos += int(points_distribution['winner'] * scale_factor)
@@ -60,6 +62,7 @@ def update_player_points(tournament):
         else:
             player.ptos += int(points_distribution['participant'] * scale_factor)
 
+        player.ptos = player.ptos / tj
         player.victorys = tournament_player.victorys
         player.defeats = tournament_player.defeats
         player.draws = tournament_player.draws
@@ -378,7 +381,7 @@ def finalize_tournament(tournament):
         }, status=status.HTTP_200_OK)
 
 def create_regular_round(tournament, next_round):
-    players_ordered = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')
+    players_ordered = tournament.players.all().order_by('-ptos')
     if players_ordered.count() % 2 != 0:
         if next_round.no_round == 1:
             import random
