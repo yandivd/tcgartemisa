@@ -5,7 +5,38 @@ from torneos.models import *
 from .serializers import *
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.views import APIView
 
+class CustomAuthTokenView(APIView):
+    def post(self, request, *args, **kwargs):
+        # Obtener el 'username' o 'email' y 'password' del request
+        identifier = request.data.get('username')
+        password = request.data.get('password')
+
+        # Determinar si el 'identifier' es un email o un nombre de usuario
+        if '@' in identifier:
+            # Si parece un email, intentar autenticar con email
+            user = authenticate(email=identifier, password=password)
+        else:
+            # Si no es un email, intentar autenticar con nombre de usuario
+            user = authenticate(username=identifier, password=password)
+
+        if user is not None:
+            # Generar tokens JWT
+            refresh = RefreshToken.for_user(user)
+            access = refresh.access_token
+
+            # Devolver los tokens en la respuesta
+            return JsonResponse({
+                'refresh': str(refresh),
+                'access': str(access),
+                'user_id': user.id,
+                'username': user.username
+            }, status=200)
+        else:
+            return JsonResponse({'detail': 'Invalid credentials'}, status=400)
 ##########################
 ###                    ###
 ##########################
