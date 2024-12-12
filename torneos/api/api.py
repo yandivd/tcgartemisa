@@ -1,6 +1,12 @@
 from collections import defaultdict
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
+from rest_framework_simplejwt.tokens import UntypedToken
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from torneos.models import *
 from .serializers import *
 from rest_framework import status
@@ -36,7 +42,57 @@ class CustomAuthTokenView(APIView):
                 'username': user.username
             }, status=200)
         else:
-            return JsonResponse({'detail': 'Invalid credentials'}, status=400)
+            return Response({'detail': 'Invalid credentials'}, status=400)
+        
+class VerifyTokenView(APIView):
+    def post(self, request, *args, **kwargs):
+        access_token = request.data.get('access')
+        refresh_token = request.data.get('refresh')
+
+        if not access_token and not refresh_token:
+            return Response({'detail': 'Access token and refresh token are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar el token de acceso
+        access_valid = False
+        access_error = None
+        if access_token:
+            try:
+                AccessToken(access_token)  # Esto lanzará un error si el token no es válido
+                access_valid = True
+            except TokenError as e:
+                access_valid = False
+                access_error = str(e)
+
+        # Verificar el token de refresh
+        refresh_valid = False
+        refresh_error = None
+        if refresh_token:
+            try:
+                RefreshToken(refresh_token)  # Esto lanzará un error si el token no es válido
+                refresh_valid = True
+            except TokenError as e:
+                refresh_valid = False
+                refresh_error = str(e)
+
+        response_data = {
+            'access_valid': access_valid,
+            'refresh_valid': refresh_valid,
+        }
+
+        if not access_valid and not refresh_valid:
+            return Response({'detail': 'Both tokens are invalid', 'access_error': access_error, 'refresh_error': refresh_error}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not access_valid and refresh_valid:
+            # Si el token de refresh es válido, generar un nuevo token de acceso
+            try:
+                refresh = RefreshToken(refresh_token)
+                new_access = str(refresh.access_token)
+                response_data['new_access'] = new_access
+                return Response(response_data, status=status.HTTP_200_OK)
+            except TokenError as e:
+                return Response({'detail': 'Refresh token is invalid', 'error': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+
+        return Response(response_data, status=status.HTTP_200_OK)
 ##########################
 ###                    ###
 ##########################
