@@ -30,7 +30,7 @@ class CustomAuthTokenView(APIView):
 
             # Devolver los tokens en la respuesta
             return JsonResponse({
-                'refresh': str(refresh),
+                'refresh': str(refresh),    
                 'access': str(access),
                 'user_id': user.id,
                 'username': user.username
