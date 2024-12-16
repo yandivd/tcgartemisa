@@ -14,7 +14,7 @@ class PlayerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PlayerTournamentSerializer(serializers.ModelSerializer):
-    # jugador = PlayerSerializer()
+    jugador = PlayerSerializer()
     class Meta:
         model = TournamentPlayer
         fields = '__all__' 
