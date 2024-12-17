@@ -201,7 +201,7 @@ def inscribe_player_api(request, id_tournament):
             tournament=tournament
         )
         serializer = PlayerTournamentSerializer(player_tournament)
-        tournament.players.add(player_tournament)
+        tournament.tournament_players.add(player_tournament)
         
         return JsonResponse(serializer.data, status=status.HTTP_201_CREATED)
     
@@ -235,7 +235,7 @@ def obtain_players_orders_by_tournament(request, id_tournament):
     except Tournament.DoesNotExist:
         return JsonResponse({'message': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    players = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')
+    players = tournament.tournament_players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')
     player_serializer = PlayerTournamentSerializer(players, many=True)
     return JsonResponse(player_serializer.data, safe=False, status=status.HTTP_200_OK)
 

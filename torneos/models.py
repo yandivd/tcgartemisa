@@ -85,15 +85,15 @@ class Round(models.Model):
         return str(self.no_round)
     
 class TopPlayer(models.Model):
-    player = models.ForeignKey(TournamentPlayer, on_delete=models.CASCADE)
+    tournament_player = models.ForeignKey(TournamentPlayer, on_delete=models.CASCADE)
     position = models.IntegerField(default=0)
 
     def __str__(self):
-        return self.player.jugador.user.username
+        return self.tournament_player.jugador.user.username
     
 class Tournament(models.Model):
     date = models.DateField()
-    players = models.ManyToManyField(TournamentPlayer, blank=True)
+    tournament_players = models.ManyToManyField(TournamentPlayer, blank=True)
     rounds = models.ManyToManyField(Round, blank=True)
     top = models.IntegerField(default=4)
     top_players_8 = models.ManyToManyField(TopPlayer, blank=True, related_name='top_8')
@@ -108,7 +108,7 @@ class Tournament(models.Model):
         return str(self.date)
     
     def stablish_rounds(self):
-        player_count = self.players.count()
+        player_count = self.tournament_players.count()
         if 4 <= player_count < 8:
             rounds = 3
         elif 9 <= player_count < 16:
@@ -128,12 +128,12 @@ class Tournament(models.Model):
             self.rounds.add(Round.objects.create(no_round=i+1))
 
     def stablish_top(self):
-        self.top = 4 if self.players.count() < 15 else 8
+        self.top = 4 if self.tournament_players.count() < 15 else 8
         self.save()
 
     
     def stablish_top_8(self):
-        top_players = self.players.order_by('-ptos')[:8]
+        top_players = self.tournament_players.order_by('-ptos')[:8]
         positions = {0: 1, 1: 8, 2: 5, 3: 4, 4: 3, 5: 6, 6: 7, 7: 2}
 
         for index, player in enumerate(top_players):
@@ -142,7 +142,7 @@ class Tournament(models.Model):
 
     def stablish_top_4(self):
         if self.top == 4:
-            top_players = self.players.order_by('-ptos')[:4]
+            top_players = self.tournament_players.order_by('-ptos')[:4]
             positions = {0: 1, 1: 4, 2: 3, 3: 2}
 
             for index, player in enumerate(top_players):

@@ -8,7 +8,7 @@ class TournamentPlayerAdmin(admin.ModelAdmin):
     list_display=['jugador', 'victorys', 'defeats', 'draws','byes', 'ptos','OMW', 'PGW', 'OGW']
 
 class TopPlayerAdmin(admin.ModelAdmin):
-    list_display=['player','position']
+    list_display=['tournament_player','position']
 
 admin.site.register(Deck)
 admin.site.register(Player, PlayerAdmin)
