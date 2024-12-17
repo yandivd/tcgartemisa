@@ -19,6 +19,11 @@ class PlayerTournamentSerializer(serializers.ModelSerializer):
         model = TournamentPlayer
         fields = '__all__' 
 
+class TopPlayerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TopPlayer
+        fields = '__all__' 
+
 class EmparentsSerializers(serializers.ModelSerializer):
     player1 = PlayerTournamentSerializer()
     player2 = PlayerTournamentSerializer()
@@ -34,8 +39,16 @@ class RoundSerializer(serializers.ModelSerializer):
 
 class TournamentSerializer(serializers.ModelSerializer):
     rounds = RoundSerializer(many=True)
-    players = PlayerTournamentSerializer(many=True)
+    tournament_players = PlayerTournamentSerializer(many=True)
+    top_players_8 = TopPlayerSerializer(many=True)
+    top_players_4 = TopPlayerSerializer(many=True)
+    final = TopPlayerSerializer(many=True)
     class Meta:
         model = Tournament
+        fields = '__all__' 
+
+class TopPlayerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TopPlayer
         fields = '__all__' 
 
