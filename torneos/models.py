@@ -92,7 +92,9 @@ class TopPlayer(models.Model):
         return self.tournament_player.jugador.user.username
     
 class Tournament(models.Model):
-    date = models.DateField()
+    date = models.DateTimeField()
+    place = models.CharField(blank=True, null=True, max_length=50)
+    address = models.CharField(max_length=150, blank=True, null=True)
     tournament_players = models.ManyToManyField(TournamentPlayer, blank=True)
     rounds = models.ManyToManyField(Round, blank=True)
     top = models.IntegerField(default=4)
