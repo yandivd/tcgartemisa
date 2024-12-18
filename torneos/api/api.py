@@ -166,6 +166,12 @@ def tournament_api(request):
     serializer = TournamentSerializer(tournaments, many=True)
     return JsonResponse(serializer.data, safe=False)
 
+@api_view(['GET'])
+def tournament_detail_api(request, id):
+    tournament = Tournament.objects.get(id=id)
+    serializer = TournamentSerializer(tournament)
+    return JsonResponse(serializer.data, safe=False)
+
 @api_view(['POST'])
 def inscribe_player_api(request, id_tournament):
     if request.method == 'POST':
