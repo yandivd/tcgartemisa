@@ -39,7 +39,8 @@ class CustomAuthTokenView(APIView):
                 'refresh': str(refresh),    
                 'access': str(access),
                 'user_id': user.id,
-                'username': user.username
+                'username': user.username,
+                'is_superuser': user.is_superuser
             }, status=200)
         else:
             return Response({'detail': 'Invalid credentials'}, status=400)
