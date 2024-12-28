@@ -43,7 +43,7 @@ class CustomAuthTokenView(APIView):
                 'is_superuser': user.is_superuser
             }, status=200)
         else:
-            return Response({'detail': 'Invalid credentials'}, status=400)
+            return Response({'error':{'errorCode':101,'message': 'Invalid credentials'}, 'detail':'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         
 class VerifyTokenView(APIView):
     def post(self, request, *args, **kwargs):
