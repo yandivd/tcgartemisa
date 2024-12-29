@@ -198,7 +198,7 @@ def inscribe_player_api(request, id_tournament):
         
         # Verificar si el jugador ya está registrado en el torneo
         if TournamentPlayer.objects.filter(jugador=player, tournament=tournament).exists():
-            return JsonResponse({'error': 'Player is already registered in this tournament'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error':{'errorCode':201,'message': 'Already Inscribed'}, 'detail':'Already Inscribed'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Crear la inscripción del jugador en el torneo
         player_tournament = TournamentPlayer.objects.create(
