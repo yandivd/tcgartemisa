@@ -14,7 +14,7 @@ class Player(models.Model):
     
 class Deck(models.Model):
     name = models.CharField(max_length=150)
-    img = models.ImageField(upload_to='decks')
+    img = models.ImageField(upload_to='decks', blank=True, null=True)
 
     def __str__(self):
         return self.name

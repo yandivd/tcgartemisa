@@ -14,6 +14,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
+from django.contrib.auth.models import User
 
 class CustomAuthTokenView(APIView):
     def post(self, request, *args, **kwargs):
@@ -181,7 +182,7 @@ def inscribe_player_api(request, id_tournament):
         except Tournament.DoesNotExist:
             return JsonResponse({'error': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        user = request.user
+        user = User.objects.get(id=request.data.get('user'))
         try:
             player = Player.objects.get(user=user)
         except Player.DoesNotExist:
