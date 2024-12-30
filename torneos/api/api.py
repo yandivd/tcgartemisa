@@ -643,4 +643,9 @@ def stablish_result_emparents(request, id_emparent):
 
     return JsonResponse({'message': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+@api_view(['GET'])
+def decks_api_views(request):
+    decks = Deck.objects.all()
+    decks_serializer = DeckSerializer(decks, many=True)
+    return JsonResponse(decks_serializer.data, safe=False, status=status.HTTP_200_OK)
         

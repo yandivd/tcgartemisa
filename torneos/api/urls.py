@@ -14,4 +14,6 @@ urlpatterns = [
     path("obtain_next_round/<int:id_tournament>/", obtain_next_round), #obtener la siguiente ronda (GET)
     path("stablish_result/<int:id_emparent>/", stablish_result_emparents), #definir los resultados de un emparejamiento
 
+    path('decks_api/', decks_api_views) #obtener el listado de todos los deckss
+
 ]

@@ -53,3 +53,8 @@ class TopPlayerSerializer(serializers.ModelSerializer):
         model = TopPlayer
         fields = '__all__' 
 
+class DeckSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Deck
+        fields = '__all__'
+
