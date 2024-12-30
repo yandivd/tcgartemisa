@@ -98,15 +98,6 @@ class VerifyTokenView(APIView):
 ##########################
 ###                    ###
 ##########################
-def has_played_before(tournament, player1, player2):
-    for round in tournament.rounds.all():
-        if round.emparents.filter(
-            (models.Q(player1=player1) & models.Q(player2=player2)) |
-            (models.Q(player1=player2) & models.Q(player2=player1))
-        ).exists():
-            return True
-    return False
-
 def update_player_points(tournament):
     num_players = tournament.players.count()
 
@@ -131,30 +122,40 @@ def update_player_points(tournament):
     for tournament_player in tournament.players.all():
         player = tournament_player.jugador
         
+        # Contar torneos jugados por el jugador
         tj = TournamentPlayer.objects.filter(jugador=player).count()
+        
+        # Inicializar puntos acumulados
+        total_points = 0
 
+        # Asignar puntos según el rendimiento en el torneo actual
         if tournament.first_place and player == tournament.first_place.jugador:
-            player.ptos += int(points_distribution['winner'] * scale_factor)
+            total_points += int(points_distribution['winner'] * scale_factor)
 
         elif tournament.second_place and player == tournament.second_place.jugador:
-            player.ptos += int(points_distribution['finalist'] * scale_factor)
+            total_points += int(points_distribution['finalist'] * scale_factor)
 
         elif tournament.third_place and player == tournament.third_place.jugador:
-            player.ptos += int(points_distribution['thirdfinalist'] * scale_factor)
+            total_points += int(points_distribution['thirdfinalist'] * scale_factor)
 
         elif tournament.top_players_4.filter(player=tournament_player).exists():
-            player.ptos += int(points_distribution['semifinalist'] * scale_factor)
+            total_points += int(points_distribution['semifinalist'] * scale_factor)
 
         elif tournament.top_players_8.filter(player=tournament_player).exists():
-            player.ptos += int(points_distribution['quarterfinalist'] * scale_factor)
+            total_points += int(points_distribution['quarterfinalist'] * scale_factor)
 
         else:
-            player.ptos += int(points_distribution['participant'] * scale_factor)
+            total_points += int(points_distribution['participant'] * scale_factor)
 
-        player.ptos = player.ptos / tj
-        player.victorys = tournament_player.victorys
-        player.defeats = tournament_player.defeats
-        player.draws = tournament_player.draws
+        # Calcular bonificación por participación
+        participation_bonus = 2 * tj  # Bonificación de 2 puntos por cada torneo jugado
+        total_points += participation_bonus
+
+        # Actualizar puntos del jugador
+        player.ptos += total_points / (tj + 1)  # Dividir por (tj + 1) para evitar división por cero
+        player.victorys += tournament_player.victorys
+        player.defeats += tournament_player.defeats
+        player.draws += tournament_player.draws
 
         player.save()
 
