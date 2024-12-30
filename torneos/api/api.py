@@ -1,6 +1,7 @@
 from collections import defaultdict
 from django.http import JsonResponse
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import UntypedToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.response import Response
@@ -13,7 +14,6 @@ from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.views import APIView
 from django.contrib.auth.models import User
 
 class CustomAuthTokenView(APIView):
@@ -176,6 +176,7 @@ def tournament_detail_api(request, id):
     return JsonResponse(serializer.data, safe=False)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def inscribe_player_api(request, id_tournament):
     if request.method == 'POST':
         try:
