@@ -1,6 +1,7 @@
 from django.urls import path
 from .. import views
 from .api import *
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView #Esto es para la autenticacion original  
 
 urlpatterns = [
     path("", views.index, name="index"),

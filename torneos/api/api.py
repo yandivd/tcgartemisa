@@ -35,10 +35,12 @@ class CustomAuthTokenView(APIView):
             refresh = RefreshToken.for_user(user)
             access = refresh.access_token
 
+            access_exp = access.payload['exp']
             # Devolver los tokens en la respuesta
             return JsonResponse({
                 'refresh': str(refresh),    
                 'access': str(access),
+                'access_exp': access_exp,
                 'user_id': user.id,
                 'username': user.username,
                 'is_superuser': user.is_superuser
