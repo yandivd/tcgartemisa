@@ -8,6 +8,12 @@ class PlayerAdmin(admin.ModelAdmin):
 class TournamentPlayerAdmin(admin.ModelAdmin):
     list_display=['jugador', 'victorys', 'defeats', 'draws','byes', 'ptos','OMW', 'PGW', 'OGW']
 
+    def deck_image(self, obj):
+        if obj.deck and obj.deck.img:  # Verifica si el Deck tiene una imagen asociada
+            return format_html(f'<img src="{obj.deck.img.url}" width="50" height="50" style="object-fit: cover;" />')
+        return "No hay imagen"
+    deck_image.short_description = "Imagen del Deck"
+
 class TopPlayerAdmin(admin.ModelAdmin):
     list_display=['tournament_player','position']
 
