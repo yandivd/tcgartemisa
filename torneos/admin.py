@@ -10,7 +10,10 @@ class TournamentPlayerAdmin(admin.ModelAdmin):
 class TopPlayerAdmin(admin.ModelAdmin):
     list_display=['tournament_player','position']
 
-admin.site.register(Deck)
+class DeckAmin(admin.ModelAdmin):
+    list_display=['name', 'img']
+
+admin.site.register(Deck, DeckAmin)
 admin.site.register(Player, PlayerAdmin)
 admin.site.register(Tournament)
 admin.site.register(TournamentPlayer, TournamentPlayerAdmin)
