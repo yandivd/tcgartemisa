@@ -84,7 +84,7 @@ class VerifyTokenView(APIView):
         }
 
         if not access_valid and not refresh_valid:
-            return Response({'detail': 'Both tokens are invalid', 'access_error': access_error, 'refresh_error': refresh_error}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'refresh_valid': False, 'access_valid': False}, status=status.HTTP_401_UNAUTHORIZED)
 
         if not access_valid and refresh_valid:
             # Si el token de refresh es válido, generar un nuevo token de acceso
