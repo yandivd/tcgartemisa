@@ -6,7 +6,7 @@ class PlayerAdmin(admin.ModelAdmin):
     list_display=['user','victorys', 'defeats', 'ptos']
 
 class TournamentPlayerAdmin(admin.ModelAdmin):
-    list_display=['jugador', 'victorys', 'defeats', 'draws','byes', 'ptos','OMW', 'PGW', 'OGW']
+    list_display=['deck_image', 'jugador', 'victorys', 'defeats', 'draws','byes', 'ptos','OMW', 'PGW', 'OGW']
 
     def deck_image(self, obj):
         if obj.deck and obj.deck.img:  # Verifica si el Deck tiene una imagen asociada
