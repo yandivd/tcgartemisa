@@ -10,7 +10,7 @@ urlpatterns = [
     path("tournament_list/", tournament_api), #lista todos los torneos (GET)
     path("tournament/<int:id>/", tournament_detail_api), #lista todos los torneos (GET)
     path("inscribe_player/<int:id_tournament>/", inscribe_player_api), #recibe el deck y el decklist para inscribir un player (POST)
-    path("unsubscribe_player/<int:id_player>/", unsubscribe_player), #recibe el deck y el decklist para inscribir un player (POST)
+    path("unsubscribe_player/<int:player_id>/", unsubscribe_player), #recibe el deck y el decklist para inscribir un player (POST)
     path("start_tournament/<int:id_tournament>/", start_tournament_api), #inicia el torneo del id enviado (POST)
     path("obtain_players_orders_by_tournament/<int:id_tournament>/", obtain_players_orders_by_tournament), #obtener los players del torneo ordenados (GET)
     path("obtain_next_round/<int:id_tournament>/", obtain_next_round), #obtener la siguiente ronda (GET)
