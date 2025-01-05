@@ -69,7 +69,7 @@ class TournamentPlayer(models.Model):
     def delete(self, *args, **kwargs):
         # Eliminar la imagen del sistema de archivos
         if self.decklist:
-            if os.path.isfile(self.image.path):
+            if os.path.isfile(self.decklist.path):
                 os.remove(self.decklist.path)
         # Llamar al método delete del modelo padre
         super().delete(*args, **kwargs)
