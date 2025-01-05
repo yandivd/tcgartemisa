@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+import os
 
 class Player(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -64,6 +65,14 @@ class TournamentPlayer(models.Model):
             return last_emparent.result_ply1 > last_emparent.result_ply2
         else:
             return last_emparent.result_ply2 > last_emparent.result_ply1
+    
+    def delete(self, *args, **kwargs):
+        # Eliminar la imagen del sistema de archivos
+        if self.decklist:
+            if os.path.isfile(self.image.path):
+                os.remove(self.decklist.path)
+        # Llamar al método delete del modelo padre
+        super().delete(*args, **kwargs)
 
 class Emparents(models.Model):
     player1 = models.ForeignKey(TournamentPlayer, related_name='Player1', on_delete=models.CASCADE)
