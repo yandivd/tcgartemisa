@@ -231,7 +231,7 @@ def unsubscribe_player(request, player_id):
         return JsonResponse({'error': {'errorCode': 500, 'message': 'Internal server error'}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     if request.method == 'POST':
         tournament_player.delete()
-        return JsonResponse({'message': 'Player unsubscribed successfull'}, status=status.HTTP_204_NO_CONTENT)
+        return JsonResponse({'message': 'Player unsubscribed successfull'}, status=status.HTTP_200_OK)
     
 
 @api_view(['POST'])
