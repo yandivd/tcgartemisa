@@ -186,6 +186,9 @@ def inscribe_player_api(request, id_tournament):
         except Tournament.DoesNotExist:
             return JsonResponse({'error': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        if tournament.status == 'Started' or tournament.status == 'Finished':
+            return Response({'error':{'errorCode':203,'message': 'Tournament is already started'}, 'detail':'Tournament is already started'}, status=status.HTTP_400_BAD_REQUEST)
+        
         user = User.objects.get(id=request.data.get('user'))
         try:
             player = Player.objects.get(user=user)
