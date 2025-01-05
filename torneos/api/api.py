@@ -232,6 +232,7 @@ def unsubscribe_player(request, player_id):
     
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def start_tournament_api(request, id_tournament):
     if request.method == 'POST':
         try:
