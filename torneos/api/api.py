@@ -1,4 +1,7 @@
 from collections import defaultdict
+from PIL import Image
+from io import BytesIO
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -207,12 +210,20 @@ def inscribe_player_api(request, id_tournament):
         # Verificar si el jugador ya está registrado en el torneo
         if TournamentPlayer.objects.filter(jugador=player, tournament=tournament).exists():
             return Response({'error':{'errorCode':201,'message': 'Already Inscribed'}, 'detail':'Already Inscribed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        decklist_file = request.FILES.get('decklist')
+        if decklist_file:
+            img = Image.open(decklist_file)
+            output = BytesIO()
+            img.save(output, format='WEBP')
+            output.seek(0)
+            decklist_file = InMemoryUploadedFile(output, 'ImageField', f"{decklist_file.name.split('.')[0]}.webp", 'image/webp', output.getbuffer().nbytes, None)
 
         # Crear la inscripción del jugador en el torneo
         player_tournament = TournamentPlayer.objects.create(
             deck=deck,
             jugador=player,
-            decklist=request.FILES.get('decklist'),
+            decklist=decklist_file,
             tournament=tournament
         )
         serializer = PlayerTournamentSerializer(player_tournament)
@@ -258,13 +269,15 @@ def start_tournament_api(request, id_tournament):
        return JsonResponse({'error': str(e)}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def obtain_players_orders_by_tournament(request, id_tournament):
     try:
         tournament = Tournament.objects.get(id=id_tournament)
     except Tournament.DoesNotExist:
         return JsonResponse({'message': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    players = tournament.tournament_players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')
+    players = tournament.tournament_players.all().order_by('-ptos', '-PMW','-OMW', '-PGW', '-OGW')
     player_serializer = PlayerTournamentSerializer(players, many=True)
     return JsonResponse(player_serializer.data, safe=False, status=status.HTTP_200_OK)
 
@@ -280,6 +293,8 @@ def obtain_bye(player_list):
             break
     return player_list
     
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def obtain_next_round(request, id_tournament):
     try:
         tournament = Tournament.objects.get(id=id_tournament)
@@ -318,7 +333,7 @@ def obtain_next_round(request, id_tournament):
 
 def create_top_8(tournament):
     print('Se juega top 8')
-    top_players = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')[:8]
+    top_players = tournament.players.all().order_by('-ptos', '-PMW', '-OMW', '-PGW', '-OGW')[:8]
     positions = {0: 1, 1: 8, 2: 5, 3: 4, 4: 3, 5: 6, 6: 7, 7: 2}
     for index, player in enumerate(top_players):
         top_player = TopPlayer.objects.create(player=player, position=positions[index])
@@ -350,7 +365,7 @@ def create_top_4(tournament):
     
     print('Se juega top 4')
     if not tournament.top_players_8.exists():
-        top_players = tournament.players.all().order_by('-ptos', '-OMW', '-PGW', '-OGW')[:4]
+        top_players = tournament.players.all().order_by('-ptos','-PMW', '-OMW', '-PGW', '-OGW')[:4]
         positions = {0: 1, 1: 4, 2: 3, 3: 2}
         for index, player in enumerate(top_players):
             top_player = TopPlayer.objects.create(player=player, position=positions[index])
@@ -581,6 +596,11 @@ def calculate_pgw(player):
 
     return total_game_points / total_games if total_games > 0 else 0.33
 
+def calculate_pmw(player):
+    total_matches = player.victorys + player.draws + player.defeats
+    pmw = (player.victorys / total_matches) if total_matches > 0 else 0
+    return pmw
+
 def calculate_ogw(player):
     opponents = player.get_opponents()
     total_opponent_gwp = 0
@@ -605,6 +625,7 @@ def calculate_ogw(player):
     return total_opponent_gwp / count if count > 0 else 0.33
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def stablish_result_emparents(request, id_emparent):
     try:
         emparent = Emparents.objects.get(id=id_emparent)
@@ -643,6 +664,7 @@ def stablish_result_emparents(request, id_emparent):
                 player.OMW = calculate_omw(player)
                 player.PGW = calculate_pgw(player)
                 player.OGW = calculate_ogw(player)
+                player.PMW = calculate_pmw(player)
                 player.save()
 
         else:
@@ -666,6 +688,7 @@ def stablish_result_emparents(request, id_emparent):
     return JsonResponse({'message': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def decks_api_views(request):
     decks = Deck.objects.all()
     decks_serializer = DeckSerializer(decks, many=True)
