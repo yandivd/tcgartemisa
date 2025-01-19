@@ -693,4 +693,25 @@ def decks_api_views(request):
     decks = Deck.objects.all()
     decks_serializer = DeckSerializer(decks, many=True)
     return JsonResponse(decks_serializer.data, safe=False, status=status.HTTP_200_OK)
+
+def rest_tournament(request, id):
+    try:
+        torneo = Tournament.objects.get(id=id)
+    except Tournament.DoesNotExist:
+        print("Torneo no encontrado")
+        return
+
+    # Eliminar rondas
+    for ronda in torneo.rounds.all():
+        ronda.delete()
+
+    # Eliminar emparentes asociados a las rondas
+    for emparente in Emparents.objects.filter(round__in=torneo.rounds.all()):
+        emparente.delete()
+
+    torneo.status = 'Created'
+    torneo.save()
+
+    # print("Rondas eliminadas con éxito")
+    return JsonResponse('Eliminado con exito', safe=False)
         
