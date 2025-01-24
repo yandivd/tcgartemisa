@@ -293,43 +293,44 @@ def obtain_bye(player_list):
             break
     return player_list
     
-@api_view(['GET'])
+@api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def obtain_next_round(request, id_tournament):
-    try:
-        tournament = Tournament.objects.get(id=id_tournament)
-    except Tournament.DoesNotExist:
-        return JsonResponse({'message': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
-    
-    next_round = tournament.rounds.filter(finished=False).order_by('no_round').first()
-    if not next_round:
-        print('Ya es pal top')
-        if tournament.top == 8:
-            print('Es top 8')
-            print(tournament.top_players_8)
-            if not tournament.top_players_8.exists():
-                print('Es la ronda top 8')
-                return create_top_8(tournament)
-            elif not tournament.top_players_4.exists():
-                print('Es la ronda del top 4')
-                return create_top_4(tournament)
-            elif not tournament.final.exists():
-                print('Es la ronda final')
-                return create_final(tournament)
+    if request.method == 'POST':
+        try:
+            tournament = Tournament.objects.get(id=id_tournament)
+        except Tournament.DoesNotExist:
+            return JsonResponse({'message': 'Tournament not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        next_round = tournament.rounds.filter(finished=False).order_by('no_round').first()
+        if not next_round:
+            print('Ya es pal top')
+            if tournament.top == 8:
+                print('Es top 8')
+                print(tournament.top_players_8)
+                if not tournament.top_players_8.exists():
+                    print('Es la ronda top 8')
+                    return create_top_8(tournament)
+                elif not tournament.top_players_4.exists():
+                    print('Es la ronda del top 4')
+                    return create_top_4(tournament)
+                elif not tournament.final.exists():
+                    print('Es la ronda final')
+                    return create_final(tournament)
+                else:
+                    return finalize_tournament(tournament)
+            elif tournament.top == 4:
+                print('Es top 4')
+                if not tournament.top_players_4.exists():
+                    return create_top_4(tournament)
+                elif not tournament.final.exists():
+                    return create_final(tournament)
+                else:
+                    return finalize_tournament(tournament)
             else:
-                return finalize_tournament(tournament)
-        elif tournament.top == 4:
-            print('Es top 4')
-            if not tournament.top_players_4.exists():
-                return create_top_4(tournament)
-            elif not tournament.final.exists():
-                return create_final(tournament)
-            else:
-                return finalize_tournament(tournament)
-        else:
-            return JsonResponse({'message': 'No unfinished rounds available'}, status=status.HTTP_200_OK)
-    
-    return create_regular_round(tournament, next_round)
+                return JsonResponse({'message': 'No unfinished rounds available'}, status=status.HTTP_200_OK)
+        
+        return create_regular_round(tournament, next_round)
 
 def create_top_8(tournament):
     print('Se juega top 8')
