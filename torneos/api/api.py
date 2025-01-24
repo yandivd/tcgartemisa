@@ -262,11 +262,11 @@ def start_tournament_api(request, id_tournament):
             tournament.stablish_top()
             tournament.status = 'Started'
             tournament.save()
-            return JsonResponse({'message': 'Tournament started successfully'}, status=status.HTTP_201_CREATED)
+            return JsonResponse({'message': 'Tournament started successfully', 'tournament_top':tournament.top, 'next_round':1}, status=status.HTTP_201_CREATED)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
-       return JsonResponse({'error': str(e)}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return JsonResponse({'error': str(e)}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
 
 @api_view(['GET'])
