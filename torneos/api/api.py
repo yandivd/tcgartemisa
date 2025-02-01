@@ -177,8 +177,23 @@ def tournament_api(request):
 @api_view(['GET'])
 def tournament_detail_api(request, id):
     tournament = Tournament.objects.get(id=id)
+    
+    # Lógica para determinar la ronda actual
+    if tournament.status == "Created":
+        current_round = None
+    elif tournament.status == "Finished":
+        current_round = "00"
+    else:
+        finished_rounds_count = tournament.rounds.filter(finished=True).count()
+        current_round = finished_rounds_count + 1 if finished_rounds_count < tournament.rounds.count() else "Finalizado"
+    
+    # Serializar el torneo
     serializer = TournamentSerializer(tournament)
-    return JsonResponse(serializer.data, safe=False)
+    response_data = serializer.data
+    response_data['current_round'] = current_round
+    
+    return JsonResponse(response_data, safe=False)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
